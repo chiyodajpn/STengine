@@ -64,6 +64,124 @@ function pw_edd_on_complete_purchase( $payment_id ) {
 add_action( 'edd_complete_purchase', 'pw_edd_on_complete_purchase' );
 
 
+function load_my_textdomain(){
+	load_textdomain('additional-translate', ABSPATH . 'wp-content/languages/loco/themes/additional-translate-'.get_locale().'.mo');
+}
+add_action('after_setup_theme', 'load_my_textdomain');
+
+function show_points_in_history($payment_id, $payment_meta) {
+	global $wpdb;
+	
+	
+	$page_details = 321; // ID of the page with the point details!
+	
+	
+	$page_details = get_permalink($page_details);
+	if(empty($page_details)) return '';
+	
+	$user_id = get_current_user_id();
+	$payments = edd_get_users_purchases( get_current_user_id(), 20, true, 'any' );
+	$points = null;
+	foreach($payments as $index => $payment) {
+		if($payment->ID == $payment_id) {
+			if($index == 0) $query = "SELECT * FROM {$wpdb->prefix}edd_points WHERE `user_id` = '{$user_id}' AND TIMESTAMPDIFF(SECOND, `date`, '{$payment->post_date}') < 0 ORDER BY `date` DESC";
+			elseif(empty($payments[$index + 1])) $query = "SELECT * FROM {$wpdb->prefix}edd_points WHERE `user_id` = '{$user_id}' AND TIMESTAMPDIFF(SECOND, `date`, '{$payment->post_date}') > 0 ORDER BY `date` DESC";
+			else {
+				$next_payment = $payments[$index + 1];
+				$query = "SELECT * FROM {$wpdb->prefix}edd_points WHERE `user_id` = '{$user_id}' AND TIMESTAMPDIFF(SECOND, `date`, '{$payment->post_date}') > 0 AND TIMESTAMPDIFF(SECOND, `date`, '{$next_payment->post_date}') < 0 ORDER BY `date` DESC";
+			}
+			$points = $wpdb->get_results($query, ARRAY_A);
+			break;
+		}
+	}
+	if(!empty($points)) {
+		$symbol = edd_currency_symbol(edd_get_currency());
+		foreach($points as $point) {
+			echo '<td class="edd_purchase_id minu-point-es">#-'.$point['point_id'].'</td>
+				<td class="edd_purchase_date minu-point-es">'.date_i18n( get_option('date_format'), strtotime( $point['date'] ) ).'</td>
+				<td class="edd_purchase_amount minu-point-es">
+					<span class="edd_purchase_amount">'.$symbol.'-'.number_format($point['point_value'], 2).'</span>
+				</td>
+				<td class="edd_purchase_details minu-point-es">
+					<a href="'.$page_details.'?user_id='.$user_id.'&point_id='.$point['point_id'].'&hash='.md5('MEg@'.$point['point_id'].'HA$h'.$user_id.'123').'">'.__( 'View Details and Downloads', 'easy-digital-downloads' ).'</a>
+				</td>
+			</tr>
+			<tr class="edd_purchase_row">';
+		}
+	}
+}
+add_action( 'edd_purchase_history_row_start', 'show_points_in_history' );
+
+function show_point_details(){
+	global $wpdb, $l10n;
+	
+	if(empty($_GET['user_id']) || empty($_GET['point_id']) || empty($_GET['hash'])) return '';
+	if($_GET['hash'] != md5('MEg@'.$_GET['point_id'].'HA$h'.$_GET['user_id'].'123')) return '';
+	
+	$user_id = $wpdb->_real_escape($_GET['user_id']);
+	$point_id = $wpdb->_real_escape($_GET['point_id']);
+	
+	$points = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}edd_points WHERE `user_id` = '{$user_id}' AND `point_id` = '{$point_id}'", ARRAY_A);
+	if(empty($points[0])) return '';
+	$point = $points[0];
+	$symbol = edd_currency_symbol(edd_get_currency());
+	
+	return '
+	<table id="edd_purchase_receipt" class="edd-table">
+		<thead>
+			<tr>
+				<th><strong>'.__( 'Point', 'additional-translate' ).':</strong></th>
+				<th>'.$point['point_id'].'</th>
+			</tr>
+		</thead>
+
+		<tbody>
+			<tr>
+				<td class="edd_receipt_payment_status"><strong>'.__( 'Payment Status', 'easy-digital-downloads' ).':</strong></td>
+				<td class="edd_receipt_payment_status">'.__( 'Done', 'additional-translate' ).'</td>
+			</tr>
+
+			<tr>
+				<td><strong>'.__( 'Payment Method', 'easy-digital-downloads' ).':</strong></td>
+				<td>'.__( 'Get For Free', 'additional-translate' ).'</td>
+			</tr>
+			
+			<tr>
+				<td><strong>'.__( 'Date', 'easy-digital-downloads' ).':</strong></td>
+				<td>'.date_i18n( get_option( 'date_format' ), strtotime( $point['date'] ) ).'</td>
+			</tr>
+			
+			<tr>
+				<td><strong>'.__( 'Total Price', 'easy-digital-downloads' ).':</strong></td>
+				<td>'.$symbol.'-'.number_format($point['point_value'], 2).'</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<h3>'.apply_filters( 'edd_payment_receipt_products_title', __( 'Products', 'easy-digital-downloads' ) ).'</h3>
+
+	<table id="edd_purchase_receipt_products" class="edd-table">
+		<thead>
+			<th>'.__( 'Name', 'easy-digital-downloads' ).'</th>
+			<th>'.__( 'Price', 'easy-digital-downloads' ).'</th>
+		</thead>
+
+		<tbody>
+			<tr>
+				<td>
+					<div class="edd_purchase_receipt_product_name">
+						'.__( 'Point Consumption For Service Use', 'additional-translate' ).'
+					</div>
+				</td>
+				<td>
+					'.$symbol.'-'.number_format($point['point_value'], 2).'
+				</td>
+			</tr>
+		</tbody>
+	</table>';
+}
+add_shortcode( 'show_point_details', 'show_point_details' );
+
 /**
  * OnePress functions and definitions.
  *

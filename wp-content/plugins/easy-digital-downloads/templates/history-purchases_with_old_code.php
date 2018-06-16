@@ -43,6 +43,32 @@ if ( is_user_logged_in() ):
 					</td>
 					<?php do_action( 'edd_purchase_history_row_end', $payment->ID, $payment->payment_meta ); ?>
 				</tr>
+				<tr class="edd_purchase_row minu-point-es">
+					<?php 
+					$querynew = new WP_Query(array(
+					'post_type' => 'api_purchase',
+					'posts_per_page' => -1,
+					'meta_query' => array(
+					        array(
+					            'key' => 'payment_id_e',
+					            'value' => $payment->ID,
+					            'compare' => 'LIKE'
+					        )
+					),
+					'post_status' => 'any'
+
+					));	
+					while($querynew->have_posts()){
+						$querynew->the_post();
+						?>
+						<td>#<?php echo get_the_ID(); ?></td>
+						<td><?php echo date_i18n( get_option('date_format'), strtotime( get_the_date() ) ); ?></td>
+						<td>$-10</td>
+						<td>Point</td>
+						<?php
+					}					
+					?>
+				</tr>
 			<?php endforeach; ?>
 		</table>
 		<div id="edd_purchase_history_pagination" class="edd_pagination navigation">
